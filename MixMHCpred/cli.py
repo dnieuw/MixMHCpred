@@ -28,11 +28,6 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         help="Alleles to compute (comma-separated), e.g. A0101,B0702,C0107 (required)"
     )
     parser.add_argument(
-        "-l", "--lib_path",
-        required=True,
-        help="Library directory path (required)"
-    )
-    parser.add_argument(
         "-m", "--output_motifs",
         default='0',
         choices=['0', '1'],
@@ -50,9 +45,6 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     # Additional validation
     if not os.path.isfile(args.InputFilePath):
         parser.error(f"Input file does not exist: {args.InputFilePath}")
-
-    if not os.path.isdir(args.lib_path):
-        parser.error(f"Library directory does not exist: {args.lib_path}")
 
     if os.path.isfile(args.OutputFilePath):
         parser.error(f"Output file '{args.OutputFilePath}' already exists. Please choose a different path.")
@@ -82,10 +74,9 @@ def main(argv: Optional[List[str]] = None) -> None:
     
     file_input = args.InputFilePath
     file_output = args.OutputFilePath
-    lib_path = args.lib_path
     alleles_raw = args.Alleles or ''
 
-    header_comments, ligands = run_MixMHCpred(file_input, lib_path, alleles_raw)
+    header_comments, ligands = run_MixMHCpred(file_input, alleles_raw)
     
     with open(file_output, 'w') as f:
         f.write('\n'.join(header_comments) + '\n')

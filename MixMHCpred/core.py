@@ -4,6 +4,7 @@
 import numpy as np
 import pandas as pd
 import os
+import importlib.resources as pkg_resources
 from typing import List, Optional, Tuple, Dict, Any, Sequence
 
 AA = ['A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','Y']
@@ -158,9 +159,10 @@ def Ligands_scores_spec(
     return ligands
 
 
-def get_allele_index(file_directory: str) -> List[int]:
+def get_allele_index() -> List[int]:
     """Read binding site indices from a file and convert to zero-based positions."""
-    return [int(int(val) - 2) for val in open(f"{file_directory}/binding_sites.txt").read().strip().split(' ')]
+    with pkg_resources.files('data.Allele_pos').joinpath('binding_sites.txt').open('r') as f:
+        return [int(int(val) - 2) for val in f.read().strip().split(' ')]
 
 
 def pairwise_score(seq1: str, seq2: str, matrix: Dict[str, float]) -> float:
@@ -204,20 +206,22 @@ def euclidean_distance(pwm_a: np.ndarray, pwm_b: np.ndarray) -> np.ndarray:
     return np.sqrt(np.sum((pwm_a - pwm_b) ** 2, axis=0))
 
 
-def distance_to_training(lib_path: str, training_Alleles: List[str], predicted_Alleles: List[str]) -> Tuple[List[str], List[float]]:
+def distance_to_training(training_Alleles: List[str], predicted_Alleles: List[str]) -> Tuple[List[str], List[float]]:
     """Compute similarity of predicted alleles to training alleles using a BLOSUM-derived matrix.
 
     Returns a tuple (closest_alleles, similarity_scores).
     """
-    Allele_Pos_idx = get_allele_index(f'{lib_path}/Allele_pos')
-    seq_data = pd.read_csv(f"{lib_path}/MHC_I_sequences.txt", delim_whitespace=True)
+    Allele_Pos_idx = get_allele_index()
+    with pkg_resources.files('data').joinpath('MHC_I_sequences.txt').open('r') as f:
+        seq_data = pd.read_csv(f, sep=r'\s+')
     for x in training_Alleles:
         if x not in seq_data['Allele'].tolist():
             print(f'{x} not found in sequence database')
     Alleles_seq_training = [seq_data[seq_data['Allele'] == allele]['Sequence'].iloc[0] for allele in training_Alleles]
     Alleles_seq_predicted = [seq_data[seq_data['Allele'] == allele]['Sequence'].iloc[0] for allele in predicted_Alleles]
 
-    dict_load = np.load(f'{lib_path}/blosum62_update.npy', allow_pickle=True)
+    with pkg_resources.files('data').joinpath('blosum62_update.npy').open('rb') as f:
+        dict_load = np.load(f, allow_pickle=True)
     blosum62 = dict_load.item()
 
     training_sequences = ["".join([allele[z] for z in Allele_Pos_idx]) for allele in Alleles_seq_training]
@@ -286,8 +290,8 @@ def validate_peptides(peptides: List[str], Lmin: int = 8, Lmax: int = 14) -> Non
             raise ValueError(f"Incompatible peptide length: {p}\t{len(p)}. Only peptides of length {Lmin}-{Lmax} are supported")
 
 
-def load_pwm_data(lib_path: str, alleles_in: List[str], L: List[int]):
-    """Load PWMs, alphas, perRank, bias and standard_dev for alleles present in the library.
+def load_pwm_data(alleles_in: List[str], L: List[int]):
+    """Load PWMs, alphas, perRank, bias and standard_dev for alleles present in the datarary.
 
     Returns a tuple: (PWMs_pred_dict_list, alphas_list, Alleles_perRank_f, bias, standard_dev)
     """
@@ -297,12 +301,14 @@ def load_pwm_data(lib_path: str, alleles_in: List[str], L: List[int]):
     bias = []
     standard_dev = []
 
-    alleles_list = pd.read_csv(f'{lib_path}/alleles_list.txt', sep='\t')
+    with pkg_resources.files('data').joinpath('alleles_list.txt').open('r') as f:
+        alleles_list = pd.read_csv(f, sep='\t')
 
     if len(alleles_in) > 0:
         PWMs_pred = []
         for l in L:
-            ratios = pd.read_csv(f'{lib_path}/pwm/class1_{l}/alphas.txt', sep='\t')
+            with pkg_resources.files('data.pwm').joinpath(f'class1_{l}/alphas.txt').open('r') as f:
+                ratios = pd.read_csv(f, sep='\t')
             PWMs_pred.append([])
             alphas.append([])
 
@@ -311,17 +317,23 @@ def load_pwm_data(lib_path: str, alleles_in: List[str], L: List[int]):
                 alpha = []
                 n = alleles_list[alleles_list['Allele'] == xxx][f'{l}'].iloc[0]
                 for i in range(n):
-                    PWM.append(pd.read_csv(f'{lib_path}/pwm/class1_{l}/PWM_{xxx}_{i+1}.csv', index_col=0))
+                    with pkg_resources.files('data.pwm').joinpath(f'class1_{l}/PWM_{xxx}_{i+1}.csv').open('r') as f:
+                        PWM.append(pd.read_csv(f, index_col=0))
                     alpha.append(ratios[ratios['Allele'] == f'{xxx}_{i+1}']['ratio'].iloc[0])
                 PWMs_pred[-1].append(PWM)
                 alphas[-1].append(alpha)
 
             PWMs_pred_dict.append(creation_PWM_dict_spec(PWMs_pred[-1], AAs=AA, PL=l))
 
-        Alleles_perRank = [pd.read_csv(f'{lib_path}/PerRank/{zz}.txt', sep='\t') for zz in alleles_in]
+        Alleles_perRank = []
+        for zz in alleles_in:
+            with pkg_resources.files('data.PerRank').joinpath(f'{zz}.txt').open('r') as f:
+                Alleles_perRank.append(pd.read_csv(f, sep='\t'))
     Alleles_perRank_f = [[Alleles_perRank[i]['score'].to_numpy(), Alleles_perRank[i]['rank'].to_numpy()] for i in range(len(alleles_in))]
-    bias = pd.read_csv(f'{lib_path}/shifts/bias.txt', sep='\t', index_col=0).loc[alleles_in].to_numpy().tolist()
-    standard_dev = pd.read_csv(f'{lib_path}/shifts/standard_dev.txt', sep='\t', index_col=0).loc[alleles_in].to_numpy().tolist()
+    with pkg_resources.files('data.shifts').joinpath('bias.txt').open('r') as f:
+        bias = pd.read_csv(f, sep='\t', index_col=0).loc[alleles_in].to_numpy().tolist()
+    with pkg_resources.files('data.shifts').joinpath('standard_dev.txt').open('r') as f:
+        standard_dev = pd.read_csv(f, sep='\t', index_col=0).loc[alleles_in].to_numpy().tolist()
 
     return PWMs_pred_dict, alphas, Alleles_perRank_f, bias, standard_dev
 
@@ -344,7 +356,7 @@ def create_header(alleles_to_test: List[str], closest_alleles: List[str], distan
     return header_comments
 
 
-def run_MixMHCpred(file_input: str, lib_path: str, alleles_raw: List[str]) -> Tuple[List[str], pd.DataFrame]:
+def run_MixMHCpred(file_input: str, alleles_raw: List[str]) -> Tuple[List[str], pd.DataFrame]:
     """Main entrypoint for the refactored script."""
 
     # Normalize alleles
@@ -360,14 +372,15 @@ def run_MixMHCpred(file_input: str, lib_path: str, alleles_raw: List[str]) -> Tu
     Ligands_L = np.unique(Ligands['length'])
 
     # Load alleles present in library
-    alleles_list = pd.read_csv(f'{lib_path}/alleles_list.txt', sep='\t')
+    with pkg_resources.files('data').joinpath('alleles_list.txt').open('r') as f:
+        alleles_list = pd.read_csv(f, sep='\t')
     Alleles = alleles_list['Allele'].tolist()
     Alleles_in = np.sort(list(set(alleles_to_test) & set(Alleles))).tolist()
     Alleles_out = np.sort(list(set(alleles_to_test) - set(Alleles))).tolist()
 
     L = [8,9,10,11,12,13,14]
 
-    PWMs_pred_dict, alphas, Alleles_perRank_f, bias, standard_dev = load_pwm_data(lib_path, Alleles_in, L)
+    PWMs_pred_dict, alphas, Alleles_perRank_f, bias, standard_dev = load_pwm_data(Alleles_in, L)
 
     Alleles_to_testt = Alleles_in + Alleles_out
 
@@ -379,7 +392,7 @@ def run_MixMHCpred(file_input: str, lib_path: str, alleles_raw: List[str]) -> Tu
     ligands = ligands[columns_df]
     ligands = ligands.round(6)
 
-    closest_alleles, distance_scores = distance_to_training(lib_path, Alleles, alleles_to_test)
+    closest_alleles, distance_scores = distance_to_training(Alleles, alleles_to_test)
 
     header_comments = create_header(alleles_to_test, closest_alleles, distance_scores, file_input)
     
