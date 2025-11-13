@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from argparse import ArgumentParser
-import argparse
 import numpy as np
 import pandas as pd
 import os
@@ -237,81 +235,6 @@ def distance_to_training(lib_path: str, training_Alleles: List[str], predicted_A
     return close_Alleles, sim_scores
 
 
-def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
-    """Parse and validate command-line arguments.
-
-    Validates required arguments and file paths. Raises SystemExit if arguments are invalid.
-    """
-    parser = ArgumentParser(
-        description='MixMHCpred: Predict MHC-I ligands across alleles and species.',
-        prog='MixMHCpred',
-        add_help=True
-    )
-    parser.add_argument(
-        "-i", "--InputFilePath",
-        required=True,
-        help="file path to peptide input file (required)"
-    )
-    parser.add_argument(
-        "-o", "--OutputFilePath",
-        required=True,
-        help="file path where to save results (required)"
-    )
-    parser.add_argument(
-        "-a", "--Alleles",
-        required=True,
-        help="Alleles to compute (comma-separated), e.g. A0101,B0702,C0107 (required)"
-    )
-    parser.add_argument(
-        "-l", "--lib_path",
-        required=True,
-        help="Library directory path (required)"
-    )
-    parser.add_argument(
-        "-m", "--output_motifs",
-        default='0',
-        choices=['0', '1'],
-        help="Create binding motifs (default: 0)"
-    )
-    parser.add_argument(
-        "-p", "--score_peptides",
-        default='1',
-        choices=['0', '1'],
-        help="Compute binding scores (default: 1)"
-    )
-
-    args = parser.parse_args(argv)
-
-    # Additional validation
-    if not os.path.isfile(args.InputFilePath):
-        parser.error(f"Input file does not exist: {args.InputFilePath}")
-
-    if not os.path.isdir(args.lib_path):
-        parser.error(f"Library directory does not exist: {args.lib_path}")
-
-    if os.path.isfile(args.OutputFilePath):
-        parser.error(f"Output file '{args.OutputFilePath}' already exists. Please choose a different path.")
-
-    if not args.Alleles or not args.Alleles.strip():
-        parser.error("Alleles argument cannot be empty.")
-
-    try:
-        _ = int(args.output_motifs)
-        if int(args.output_motifs) not in (0, 1):
-            raise ValueError
-    except ValueError:
-        parser.error("output_motifs (-m) must be '0' or '1'")
-
-    try:
-        _ = int(args.score_peptides)
-        if int(args.score_peptides) not in (0, 1):
-            raise ValueError
-    except ValueError:
-        parser.error("score_peptides (-p) must be '0' or '1'")
-
-    return args
-
-
 def normalize_alleles(alleles_csv: str) -> List[str]:
     """Normalize allele strings from user input to the project's format.
 
@@ -403,7 +326,7 @@ def load_pwm_data(lib_path: str, alleles_in: List[str], L: List[int]):
     return PWMs_pred_dict, alphas, Alleles_perRank_f, bias, standard_dev
 
 
-def write_output(file_output: str, ligands: pd.DataFrame, alleles_to_test: List[str], closest_alleles: List[str], distance_scores: List[float], file_input: str) -> None:
+def create_header(alleles_to_test: List[str], closest_alleles: List[str], distance_scores: List[float], file_input: str) -> None:
     Alleles_quality_info = [f'{closest_alleles[i]} ({np.round(distance_scores[i],4)})' for i in range(len(closest_alleles))]
     header_comments = [
         "####################",
@@ -418,20 +341,11 @@ def write_output(file_output: str, ligands: pd.DataFrame, alleles_to_test: List[
         "####################"
     ]
 
-    with open(file_output, 'w') as f:
-        f.write('\n'.join(header_comments) + '\n')
-        ligands.to_csv(f, sep='\t', index=False, lineterminator='\n')
+    return header_comments
 
 
-def main(argv: Optional[List[str]] = None) -> None:
+def run_MixMHCpred(file_input: str, lib_path: str, alleles_raw: List[str]) -> Tuple[List[str], pd.DataFrame]:
     """Main entrypoint for the refactored script."""
-
-    args = parse_args(argv)
-
-    file_input = args.InputFilePath
-    file_output = args.OutputFilePath
-    lib_path = args.lib_path
-    alleles_raw = args.Alleles or ''
 
     # Normalize alleles
     alleles_to_test = normalize_alleles(alleles_raw)
@@ -467,11 +381,6 @@ def main(argv: Optional[List[str]] = None) -> None:
 
     closest_alleles, distance_scores = distance_to_training(lib_path, Alleles, alleles_to_test)
 
-    write_output(file_output, ligands, alleles_to_test, closest_alleles, distance_scores, file_input)
-
-    print(f"\n{file_output} is created\n")
-    print('\nDONE\n')
-
-
-if __name__ == '__main__':
-    main()
+    header_comments = create_header(alleles_to_test, closest_alleles, distance_scores, file_input)
+    
+    return header_comments, ligands
