@@ -1,0 +1,5 @@
+include README.md
+include MixMHCpred_license.pdf
+recursive-include MixMHCpred/data *
+global-exclude __pycache__
+global-exclude *.py[co]

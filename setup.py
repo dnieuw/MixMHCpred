@@ -13,6 +13,14 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/dnieuw/MixMHCpred",
     packages=find_packages(),
+    package_data={
+        'MixMHCpred.data': ['*.txt', '*.npy', '*.fasta'],
+        'MixMHCpred.data.Allele_pos': ['*.txt'],
+        'MixMHCpred.data.PerRank': ['*.txt'],
+        'MixMHCpred.data.pwm': ['**/*.txt', '**/*.csv'],
+        'MixMHCpred.data.shifts': ['*.txt'],
+        'MixMHCpred.data.weights': ['*.npy'],
+    },
     classifiers=[
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.8",

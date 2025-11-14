@@ -36,7 +36,7 @@ def creation_PWM_dict_spec(PWMs: List[List[pd.DataFrame]], AAs: List[str] = AA, 
     return PWMs_dict
 
 
-def interpolate_v2(x_values: np.ndarray, y_values: np.ndarray, x_new_values: np.ndarray) -> np.ndarray:
+def interpolate_v2(x_values: np.ndarray, y_values: np.ndarray, x_new_values: List) -> np.ndarray:
     """Linear interpolation over reversed x/y arrays and clip out-of-range values.
 
     The function expects x_values and y_values to be sorted; it reverses them and
@@ -106,7 +106,7 @@ def ligands_PWMs_scores_spec(
 
         allele_scores.append(scores_corr)
 
-        allele_ranks.append(interpolate_v2(perRank[i][0], perRank[i][1], np.ndarray(scores_corr)))
+        allele_ranks.append(interpolate_v2(perRank[i][0], perRank[i][1], scores_corr))
 
     return allele_scores, allele_ranks
     
@@ -161,7 +161,7 @@ def Ligands_scores_spec(
 
 def get_allele_index() -> List[int]:
     """Read binding site indices from a file and convert to zero-based positions."""
-    with pkg_resources.files('data.Allele_pos').joinpath('binding_sites.txt').open('r') as f:
+    with pkg_resources.files('MixMHCpred.data.Allele_pos').joinpath('binding_sites.txt').open('r') as f:
         return [int(int(val) - 2) for val in f.read().strip().split(' ')]
 
 
@@ -212,7 +212,7 @@ def distance_to_training(training_Alleles: List[str], predicted_Alleles: List[st
     Returns a tuple (closest_alleles, similarity_scores).
     """
     Allele_Pos_idx = get_allele_index()
-    with pkg_resources.files('data').joinpath('MHC_I_sequences.txt').open('r') as f:
+    with pkg_resources.files('MixMHCpred.data').joinpath('MHC_I_sequences.txt').open('r') as f:
         seq_data = pd.read_csv(f, sep=r'\s+')
     for x in training_Alleles:
         if x not in seq_data['Allele'].tolist():
@@ -220,7 +220,7 @@ def distance_to_training(training_Alleles: List[str], predicted_Alleles: List[st
     Alleles_seq_training = [seq_data[seq_data['Allele'] == allele]['Sequence'].iloc[0] for allele in training_Alleles]
     Alleles_seq_predicted = [seq_data[seq_data['Allele'] == allele]['Sequence'].iloc[0] for allele in predicted_Alleles]
 
-    with pkg_resources.files('data').joinpath('blosum62_update.npy').open('rb') as f:
+    with pkg_resources.files('MixMHCpred.data').joinpath('blosum62_update.npy').open('rb') as f:
         dict_load = np.load(f, allow_pickle=True)
     blosum62 = dict_load.item()
 
@@ -301,13 +301,13 @@ def load_pwm_data(alleles_in: List[str], L: List[int]):
     bias = []
     standard_dev = []
 
-    with pkg_resources.files('data').joinpath('alleles_list.txt').open('r') as f:
+    with pkg_resources.files('MixMHCpred.data').joinpath('alleles_list.txt').open('r') as f:
         alleles_list = pd.read_csv(f, sep='\t')
 
     if len(alleles_in) > 0:
         PWMs_pred = []
         for l in L:
-            with pkg_resources.files('data.pwm').joinpath(f'class1_{l}/alphas.txt').open('r') as f:
+            with pkg_resources.files('MixMHCpred.data.pwm').joinpath(f'class1_{l}/alphas.txt').open('r') as f:
                 ratios = pd.read_csv(f, sep='\t')
             PWMs_pred.append([])
             alphas.append([])
@@ -317,7 +317,7 @@ def load_pwm_data(alleles_in: List[str], L: List[int]):
                 alpha = []
                 n = alleles_list[alleles_list['Allele'] == xxx][f'{l}'].iloc[0]
                 for i in range(n):
-                    with pkg_resources.files('data.pwm').joinpath(f'class1_{l}/PWM_{xxx}_{i+1}.csv').open('r') as f:
+                    with pkg_resources.files('MixMHCpred.data.pwm').joinpath(f'class1_{l}/PWM_{xxx}_{i+1}.csv').open('r') as f:
                         PWM.append(pd.read_csv(f, index_col=0))
                     alpha.append(ratios[ratios['Allele'] == f'{xxx}_{i+1}']['ratio'].iloc[0])
                 PWMs_pred[-1].append(PWM)
@@ -327,12 +327,12 @@ def load_pwm_data(alleles_in: List[str], L: List[int]):
 
         Alleles_perRank = []
         for zz in alleles_in:
-            with pkg_resources.files('data.PerRank').joinpath(f'{zz}.txt').open('r') as f:
+            with pkg_resources.files('MixMHCpred.data.PerRank').joinpath(f'{zz}.txt').open('r') as f:
                 Alleles_perRank.append(pd.read_csv(f, sep='\t'))
     Alleles_perRank_f = [[Alleles_perRank[i]['score'].to_numpy(), Alleles_perRank[i]['rank'].to_numpy()] for i in range(len(alleles_in))]
-    with pkg_resources.files('data.shifts').joinpath('bias.txt').open('r') as f:
+    with pkg_resources.files('MixMHCpred.data.shifts').joinpath('bias.txt').open('r') as f:
         bias = pd.read_csv(f, sep='\t', index_col=0).loc[alleles_in].to_numpy().tolist()
-    with pkg_resources.files('data.shifts').joinpath('standard_dev.txt').open('r') as f:
+    with pkg_resources.files('MixMHCpred.data.shifts').joinpath('standard_dev.txt').open('r') as f:
         standard_dev = pd.read_csv(f, sep='\t', index_col=0).loc[alleles_in].to_numpy().tolist()
 
     return PWMs_pred_dict, alphas, Alleles_perRank_f, bias, standard_dev
@@ -372,7 +372,7 @@ def run_MixMHCpred(file_input: str, alleles_raw: str) -> Tuple[List[str], pd.Dat
     Ligands_L = np.unique(Ligands['length'])
 
     # Load alleles present in library
-    with pkg_resources.files('data').joinpath('alleles_list.txt').open('r') as f:
+    with pkg_resources.files('MixMHCpred.data').joinpath('alleles_list.txt').open('r') as f:
         alleles_list = pd.read_csv(f, sep='\t')
     Alleles = alleles_list['Allele'].tolist()
     Alleles_in = np.sort(list(set(alleles_to_test) & set(Alleles))).tolist()
