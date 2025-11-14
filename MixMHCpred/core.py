@@ -106,14 +106,14 @@ def ligands_PWMs_scores_spec(
 
         allele_scores.append(scores_corr)
 
-        allele_ranks.append(interpolate_v2(perRank[i][0], perRank[i][1], scores_corr))
+        allele_ranks.append(interpolate_v2(perRank[i][0], perRank[i][1], np.ndarray(scores_corr)))
 
     return allele_scores, allele_ranks
     
 
 def Ligands_scores_spec(
     ligands: pd.DataFrame,
-    ligands_L: Sequence[int],
+    ligands_L: np.ndarray,
     Alleles: List[str],
     PWMs_dict: List[Any],
     alphas: List[Any],
@@ -338,7 +338,7 @@ def load_pwm_data(alleles_in: List[str], L: List[int]):
     return PWMs_pred_dict, alphas, Alleles_perRank_f, bias, standard_dev
 
 
-def create_header(alleles_to_test: List[str], closest_alleles: List[str], distance_scores: List[float], file_input: str) -> None:
+def create_header(alleles_to_test: List[str], closest_alleles: List[str], distance_scores: List[float], file_input: str) -> List[str]:
     Alleles_quality_info = [f'{closest_alleles[i]} ({np.round(distance_scores[i],4)})' for i in range(len(closest_alleles))]
     header_comments = [
         "####################",
@@ -356,7 +356,7 @@ def create_header(alleles_to_test: List[str], closest_alleles: List[str], distan
     return header_comments
 
 
-def run_MixMHCpred(file_input: str, alleles_raw: List[str]) -> Tuple[List[str], pd.DataFrame]:
+def run_MixMHCpred(file_input: str, alleles_raw: str) -> Tuple[List[str], pd.DataFrame]:
     """Main entrypoint for the refactored script."""
 
     # Normalize alleles
